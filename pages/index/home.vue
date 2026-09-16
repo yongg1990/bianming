@@ -49,46 +49,65 @@
         </view>
       </view>
       <view class="section-title">处理流程</view>
-        <view class="timeline" v-if="prescription.statusList">
+      <view v-if="splitPrescription && executionList.length" class="execution-switch">
+        <scroll-view scroll-x="true" class="execution-tabs-scroll" :show-scrollbar="false">
+          <view class="execution-tabs">
+            <view
+              v-for="(execution, index) in executionList"
+              :key="execution.recordId || index"
+              class="execution-tab"
+              :class="{ active: currentExecutionIndex === index }"
+              @tap="selectExecution(index)"
+            >
+              {{ getExecutionTabText(execution, index) }}
+            </view>
+          </view>
+        </scroll-view>
+        <view class="execution-tip">
+          <uni-icons type="info-filled" color="#1890ff" size="16"></uni-icons>
+          <text>当前展示{{ getExecutionTabText(currentExecution, currentExecutionIndex) }}处方的处理流程</text>
+        </view>
+      </view>
+        <view class="timeline" v-if="currentStatusList.length">
           <view class="timeline-line"></view>
-          <view class="timeline-item" v-for="(k, i) in prescription.statusList" :key="i"
-                :class="{'active-item' : k.ztbm < 11 && i >= prescription.statusList.length - 1}">
-            <view class="active-line" v-if="k.ztbm < 11 && i >= prescription.statusList.length - 1"></view>
+          <view class="timeline-item" v-for="(k, i) in currentStatusList" :key="i"
+                :class="{'active-item' : isProcessingStatus(k) && i >= currentStatusList.length - 1}">
+            <view class="active-line" v-if="isProcessingStatus(k) && i >= currentStatusList.length - 1"></view>
             <view class="timeline-dot"
                 :class="{
-              done: i < prescription.statusList.length -1,
-              'active-dot': i >= prescription.statusList.length -1,
-               'muted-dot':  k.ztbm === '9'}">
-              {{ k.ztbm < 11 && i >= prescription.statusList.length - 1 ? '▣' : '✓'}}
+              done: i < currentStatusList.length -1,
+              'active-dot': i >= currentStatusList.length -1,
+               'muted-dot': isLogisticsStatus(k)}">
+              {{ isProcessingStatus(k) && i >= currentStatusList.length - 1 ? '▣' : '✓'}}
             </view>
             <view class="step-card"
                   :class="{
-              'active-card': i >= prescription.statusList.length -1 }">
+              'active-card': i >= currentStatusList.length -1 }">
               <view class="step-head">
                 <text class="step-title">{{ i + 1 }}. {{k.ztmc}}</text>
                 <text class="status " :class="{
-              finished: i < prescription.statusList.length -1,
-              'processing': i >= prescription.statusList.length -1 }">
-                  {{ k.ztbm < 11 && i >= prescription.statusList.length - 1 ? '进行中' : '已完成'}}
+              finished: i < currentStatusList.length -1,
+              'processing': i >= currentStatusList.length -1 }">
+                  {{ isProcessingStatus(k) && i >= currentStatusList.length - 1 ? '进行中' : '已完成'}}
                 </text>
               </view>
               <text class="step-desc">{{ k.sjfssj ? formatDateString(k.sjfssj) : '' }}</text>
             </view>
-            <view v-if="k.ztbm === '9' && prescription.logisticDetailList" class="logistics-card">
+            <view v-if="isLogisticsStatus(k) && currentLogisticDetailList.length" class="logistics-card">
               <view class="logistics-head">
                 <view class="logistics-title">
                   <text class="truck-icon">▣</text>
                   <text>物流轨迹</text>
                 </view>
                 <view style="flex-direction: row;display: flex;align-items: center">
-                  <text class="delivery-name">{{ prescription.logisticInfo.kdgsmc }}</text>
+                  <text class="delivery-name">{{ getLogisticCompany(currentLogisticInfo) }}</text>
                   <uni-icons :type="kdgsmcFlg ? 'down' : 'up'" color="#676c6f"  size="16" style="cursor: pointer" @tap="kdgsmcFlg = !kdgsmcFlg"></uni-icons>
                 </view>
               </view>
 
               <view class="track-list" v-if="!kdgsmcFlg">
-                <view class="track-item" v-for="(k, i) in prescription.logisticDetailList" :key="i" :class="{last: i >= prescription.logisticDetailList.length - 1}">
-                  <view class="track-dot " :class="{latest: i >= prescription.logisticDetailList.length - 1}"></view>
+                <view class="track-item" v-for="(k, i) in currentLogisticDetailList" :key="i" :class="{last: i >= currentLogisticDetailList.length - 1}">
+                  <view class="track-dot " :class="{latest: i >= currentLogisticDetailList.length - 1}"></view>
                   <view>
                     <text class="track-title">{{ k.context }}</text>
                     <text class="track-time"> {{ k.time ? formatDateString(k.time) : '' }}</text>
@@ -132,10 +151,85 @@ export default {
   },
   data() {
     return {
-      kdgsmcFlg: false
+      kdgsmcFlg: false,
+      currentExecutionIndex: 0
+    }
+  },
+  computed: {
+    splitPrescription() {
+      return this.prescription && this.prescription.splitPrescription === true
+    },
+    executionList() {
+      if (!this.splitPrescription || !Array.isArray(this.prescription.executionList)) return []
+      return this.prescription.executionList.slice().sort((a, b) => Number(a.executionNo || 0) - Number(b.executionNo || 0))
+    },
+    currentExecution() {
+      return this.executionList[this.currentExecutionIndex] || {}
+    },
+    currentStatusList() {
+      return this.splitPrescription
+        ? (Array.isArray(this.currentExecution.statusList) ? this.currentExecution.statusList : [])
+        : (Array.isArray(this.prescription.statusList) ? this.prescription.statusList : [])
+    },
+    currentLogisticDetailList() {
+      return this.splitPrescription
+        ? (Array.isArray(this.currentExecution.logisticDetailList) ? this.currentExecution.logisticDetailList : [])
+        : (Array.isArray(this.prescription.logisticDetailList) ? this.prescription.logisticDetailList : [])
+    },
+    currentLogisticInfo() {
+      if (!this.splitPrescription) return this.prescription.logisticInfo || {}
+      const logisticList = this.currentExecution.logisticList
+      if (Array.isArray(logisticList) && logisticList.length) {
+        return logisticList[0].logisticInfo || logisticList[0] || {}
+      }
+      return this.currentExecution.logisticInfo || {}
+    }
+  },
+  watch: {
+    prescription: {
+      deep: true,
+      handler() {
+        this.currentExecutionIndex = 0
+        this.kdgsmcFlg = false
+      }
     }
   },
   methods:{
+    selectExecution(index) {
+      this.currentExecutionIndex = index
+      this.kdgsmcFlg = false
+    },
+    isProcessingStatus(item) {
+      return Number(item && item.ztbm) < 11
+    },
+    isLogisticsStatus(item) {
+      return String(item && item.ztbm) === '9'
+    },
+    getLogisticCompany(logistic) {
+      return logistic.kdgsmc || logistic.logisticCompanyName || logistic.logisticsCompany || logistic.companyName || ''
+    },
+    getExecutionTabText(execution, index) {
+      const no = execution.executionNo || index + 1
+      const date = this.getExecutionDate(execution)
+      return '第' + no + '次' + (date ? '  ' + date : '')
+    },
+    getExecutionDate(execution) {
+      const statusList = Array.isArray(execution.statusList) ? execution.statusList : []
+      const logisticDetailList = Array.isArray(execution.logisticDetailList) ? execution.logisticDetailList : []
+      const value = execution.sendTime || execution.downloadTime ||
+        (statusList[0] && statusList[0].sjfssj) ||
+        (logisticDetailList[0] && logisticDetailList[0].time) || ''
+      const date = this.normalizeBackendDate(value)
+      const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      return match ? match[2] + '-' + match[3] : ''
+    },
+    normalizeBackendDate(value) {
+      if (!value) return ''
+      const date = String(value)
+      if (/^\d{8}\/\d{6}$/.test(date)) return this.formatDateString(date)
+      if (/^\d{14}$/.test(date)) return this.formatDateString(date.slice(0, 8) + '/' + date.slice(8))
+      return date
+    },
     navigateBack() {
       this.$emit('backFun')
       },
@@ -327,6 +421,52 @@ page {
   color: #343a42;
   font-size: 29rpx;
   font-weight: 600;
+}
+
+.execution-switch {
+  margin-bottom: 22rpx;
+}
+
+.execution-tabs-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.execution-tabs {
+  display: flex;
+  gap: 12rpx;
+  min-width: 100%;
+}
+
+.execution-tab {
+  flex: 1;
+  min-width: 220rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  color: #666;
+  background: #ffffff;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.execution-tab.active {
+  color: #ffffff;
+  background: #1890ff;
+}
+
+.execution-tip {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 16rpx;
+  padding: 14rpx 18rpx;
+  color: #4285c5;
+  background: #eef7ff;
+  border-radius: 8rpx;
+  font-size: 22rpx;
 }
 
 .timeline {

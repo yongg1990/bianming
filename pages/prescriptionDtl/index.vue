@@ -64,6 +64,26 @@
             :rotate="-30">
         </h-watermark>
 
+        <view v-if="splitPrescription && currentTab !== '0'" class="execution-switch">
+          <scroll-view scroll-x="true" class="execution-tabs-scroll" :show-scrollbar="false">
+            <view class="execution-tabs">
+              <view
+                v-for="(execution, index) in executionList"
+                :key="execution.recordId || index"
+                class="execution-tab"
+                :class="{ active: currentExecutionIndex === index }"
+                @tap="selectExecution(index)"
+              >
+                {{ getExecutionTabText(execution, index) }}
+              </view>
+            </view>
+          </scroll-view>
+          <view v-if="executionList.length" class="execution-tip">
+            <uni-icons type="info-filled" color="#1890ff" size="16"></uni-icons>
+            <text>当前展示{{ getExecutionTabText(currentExecution, currentExecutionIndex) }}处方的{{ currentTab === '1' ? '状态' : '物流' }}信息</text>
+          </view>
+        </view>
+
         <!-- 处方内容 -->
 			<view v-if="currentTab === '0'" class="prescription-content">
 				<view class="prescription-header">
@@ -135,6 +155,23 @@
        </view>
 			<!-- 物品信息 -->
         <view class="timelineBox" v-if="currentTab === '2'" >
+          <view v-if="splitPrescription && currentLogisticInfo" class="logistic-summary">
+            <view class="logistic-row">
+              <text class="logistic-label">物流公司</text>
+              <text class="logistic-value">{{ getLogisticCompany(currentLogisticInfo) || '-' }}</text>
+            </view>
+            <view class="logistic-row">
+              <text class="logistic-label">运单号</text>
+              <text class="logistic-value">{{ getLogisticNo(currentLogisticInfo) || '-' }}</text>
+              <text v-if="getLogisticNo(currentLogisticInfo)" class="copy-text" @tap="copyText(getLogisticNo(currentLogisticInfo))">复制</text>
+            </view>
+            <view class="logistic-row">
+              <text class="logistic-label">收货地址</text>
+              <text class="logistic-value address-value">{{ getLogisticAddress(currentLogisticInfo) || '-' }}</text>
+              <text v-if="getLogisticAddress(currentLogisticInfo)" class="copy-text" @tap="copyText(getLogisticAddress(currentLogisticInfo))">复制</text>
+            </view>
+          </view>
+          <view v-if="splitPrescription && timelineDataB.length" class="logistic-title">物流进度</view>
           <view class="timeline" v-if="timelineDataB.length">
             <view v-for="(item, index) in timelineDataB" :key="index" class="timeline-item"
                   :class="{ 'active': index < 1 }">
@@ -223,9 +260,22 @@ import request from '@/request/request';
 				],
 				timelineData: [],
 				institutionInfo: {},
-				itemDt: {}
+				itemDt: {},
+        splitPrescription: false,
+        executionList: [],
+        currentExecutionIndex: 0
 			};
 		},
+    computed: {
+      currentExecution() {
+        return this.executionList[this.currentExecutionIndex] || {}
+      },
+      currentLogisticInfo() {
+        const logisticList = this.currentExecution.logisticList
+        if (!Array.isArray(logisticList) || !logisticList.length) return null
+        return logisticList[0].logisticInfo || logisticList[0]
+      }
+    },
 		onLoad(option) {
       this.avatarImg = uni.getStorageSync('userAvatar') || 'gb'
 			this.info = uni.getStorageSync('userInfo') || {}
@@ -239,18 +289,18 @@ import request from '@/request/request';
         }
       }).finally(()=>{
         this.institutionInfo = this.itemDt.institutionInfo || {}
-        this.timelineData = this.itemDt.statusList || []
-        this.timelineDataB = this.itemDt.logisticDetailList || []
-        this.timelineData.map(w=>{
-          w.updateTimeShow = w.sjfssj ? this.formatDateString(w.sjfssj) : ''
-          w.fileList = w.fileList ? w.fileList : []
-        })
-        this.timelineDataB.map(w=>{
-          w.updateTimeShow = w.time ? this.formatDateString(w.time) : ''
-        })
+        this.splitPrescription = this.itemDt.splitPrescription === true
+        this.executionList = this.splitPrescription && Array.isArray(this.itemDt.executionList)
+          ? this.itemDt.executionList.slice().sort((a, b) => Number(a.executionNo || 0) - Number(b.executionNo || 0))
+          : []
+        if (this.splitPrescription) {
+          this.currentExecutionIndex = 0
+          this.setExecutionData()
+        } else {
+          this.timelineData = this.formatStatusList(this.itemDt.statusList)
+          this.timelineDataB = this.formatLogisticDetailList(this.itemDt.logisticDetailList)
+        }
         this.medicines = this.itemDt.detailInfoList || []
-        this.timelineData.sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
-        this.timelineDataB.sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
         this.watermark = this.info.userName + this.formatDate()
         uni.onUserCaptureScreen(() => {
           console.log('用户执行了截屏操作');
@@ -298,6 +348,68 @@ import request from '@/request/request';
       }, '*');
     },
 		methods: {
+      selectExecution(index) {
+        this.currentExecutionIndex = index
+        this.setExecutionData()
+      },
+      setExecutionData() {
+        const execution = this.executionList[this.currentExecutionIndex] || {}
+        this.timelineData = this.formatStatusList(execution.statusList)
+        this.timelineDataB = this.formatLogisticDetailList(execution.logisticDetailList)
+      },
+      formatStatusList(list) {
+        return (Array.isArray(list) ? list : []).map(item => ({
+          ...item,
+          updateTimeShow: this.normalizeBackendDate(item.sjfssj),
+          fileList: Array.isArray(item.fileList) ? item.fileList : []
+        })).sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
+      },
+      formatLogisticDetailList(list) {
+        return (Array.isArray(list) ? list : []).map(item => ({
+          ...item,
+          updateTimeShow: this.normalizeBackendDate(item.time)
+        })).sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
+      },
+      normalizeBackendDate(value) {
+        if (!value) return ''
+        const date = String(value)
+        if (/^\d{8}\/\d{6}$/.test(date)) return this.formatDateString(date)
+        if (/^\d{14}$/.test(date)) return this.formatDateString(date.slice(0, 8) + '/' + date.slice(8))
+        return date
+      },
+      getExecutionTabText(execution, index) {
+        const no = execution.executionNo || index + 1
+        const date = this.getExecutionDate(execution)
+        return `第${no}次${date ? '  ' + date : ''}`
+      },
+      getExecutionDate(execution) {
+        const statusList = Array.isArray(execution.statusList) ? execution.statusList : []
+        const logisticDetailList = Array.isArray(execution.logisticDetailList) ? execution.logisticDetailList : []
+        const value = execution.sendTime || execution.downloadTime ||
+          (statusList[0] && statusList[0].sjfssj) ||
+          (logisticDetailList[0] && logisticDetailList[0].time) || ''
+        const date = this.normalizeBackendDate(value)
+        const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        return match ? `${match[2]}-${match[3]}` : ''
+      },
+      getLogisticCompany(logistic) {
+        return logistic.kdgsmc || logistic.logisticCompanyName || logistic.logisticsCompany || logistic.companyName || ''
+      },
+      getLogisticNo(logistic) {
+        return logistic.mailNo || logistic.waybillNo || logistic.trackingNo || logistic.logisticNo || logistic.kddh || ''
+      },
+      getLogisticAddress(logistic) {
+        const consignee = logistic.consigneeInfo || this.itemDt.consigneeInfo || {}
+        return logistic.receiverAddress || logistic.address || [
+          consignee.shrdzsheng,
+          consignee.shrdzshi,
+          consignee.shrdzxian,
+          consignee.shrdzxxdz
+        ].filter(Boolean).join('')
+      },
+      copyText(value) {
+        uni.setClipboardData({ data: value })
+      },
 			formatMedicineWeight(medicine) {
 				if (!medicine || medicine.zl === undefined || medicine.zl === null || medicine.zl === '') return '-'
 				const unit = this.medicineUnits.find(item => String(item.dicValue) === String(medicine.ypdw))
@@ -556,6 +668,53 @@ import request from '@/request/request';
     height: calc(100vh - 540rpx)
 	}
 
+  .execution-switch {
+    padding: 18rpx 24rpx 0;
+    background-color: #fff;
+  }
+
+  .execution-tabs-scroll {
+    width: 100%;
+    white-space: nowrap;
+  }
+
+  .execution-tabs {
+    display: flex;
+    gap: 12rpx;
+    min-width: 100%;
+  }
+
+  .execution-tab {
+    flex: 1;
+    min-width: 220rpx;
+    height: 64rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border-radius: 8rpx;
+    background-color: #f3f6fa;
+    color: #666;
+    font-size: 24rpx;
+  }
+
+  .execution-tab.active {
+    color: #fff;
+    background-color: #1890ff;
+  }
+
+  .execution-tip {
+    display: flex;
+    align-items: center;
+    gap: 10rpx;
+    margin-top: 16rpx;
+    padding: 14rpx 18rpx;
+    border-radius: 8rpx;
+    color: #4285c5;
+    background-color: #eef7ff;
+    font-size: 22rpx;
+  }
+
 	.tab-pane {
 		padding: 30rpx;
 		min-height: 600rpx;
@@ -631,6 +790,58 @@ import request from '@/request/request';
 
 	.timelineBox {
 		padding-top: 30rpx;
+  }
+
+  .logistic-summary {
+    margin: 0 24rpx 24rpx;
+    padding: 8rpx 20rpx;
+    border: 1rpx solid #edf0f3;
+    border-radius: 8rpx;
+    background-color: #fff;
+  }
+
+  .logistic-row {
+    display: flex;
+    align-items: flex-start;
+    min-height: 64rpx;
+    padding: 14rpx 0;
+    box-sizing: border-box;
+    border-bottom: 1rpx solid #f0f0f0;
+    font-size: 24rpx;
+  }
+
+  .logistic-row:last-child {
+    border-bottom: 0;
+  }
+
+  .logistic-label {
+    flex-shrink: 0;
+    width: 128rpx;
+    color: #666;
+  }
+
+  .logistic-value {
+    flex: 1;
+    min-width: 0;
+    color: #333;
+    word-break: break-all;
+  }
+
+  .address-value {
+    line-height: 36rpx;
+  }
+
+  .copy-text {
+    flex-shrink: 0;
+    margin-left: 16rpx;
+    color: #1890ff;
+  }
+
+  .logistic-title {
+    padding: 0 30rpx 20rpx;
+    color: #333;
+    font-size: 26rpx;
+    font-weight: 500;
   }
 
 	.timeline {
