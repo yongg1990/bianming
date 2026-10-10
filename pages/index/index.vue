@@ -1,6 +1,7 @@
 <template>
 	<view class="container">
     <view v-if="homeFlg">
+      <!-- 最近1处方 -->
       <Home :prescription="prescriptionDt" @backFun="backFun"></Home>
     </view>
     <view v-else>
