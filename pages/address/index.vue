@@ -76,7 +76,7 @@
 				</view>
 			</view>
 		</uni-popup>
-		<wht-picker ref="picker" :columns="mapJson" v-model="addressDt[3].address" type="linkage" @cancel="closeConfirm"
+		<wht-picker ref="picker" :columns="mapJson" :value="addressVal" :model-value="addressVal" type="linkage" @cancel="closeConfirm"
 			@confirm="onConfirm" />
 	</view>
 </template>
@@ -167,9 +167,21 @@
 			dialogConfirm() {
 				cfListFun('deleteConsignee', { recordId: this.editDt.recordId }).then(res => { this.showResult(res); if (this.isSuccess(res)) { this.closeDrawer(); this.getListFun() } })
 			},
-			showConfirm() { this.$refs.picker.setValue(this.addressVal); this.$refs.picker.open() },
+			showConfirm() {
+				const value = this.addressVal.slice()
+				let columns = this.mapJson
+				let level = 0
+				while (columns && columns.length) {
+					const index = value[level] == null ? 0 : value[level]
+					value[level] = index
+					columns = columns[index].children
+					level++
+				}
+				this.$refs.picker.setValue(value)
+				this.$refs.picker.open()
+			},
 			closeConfirm() { this.$refs.picker.close(); this.$refs.picker.clear() },
-			onConfirm(e) { this.addressDt[3].address = e.display; this.closeConfirm() }
+			onConfirm(e) { this.addressVal = e.value.slice(); this.addressDt[3].address = e.display; this.closeConfirm() }
 		}
 	}
 </script>
