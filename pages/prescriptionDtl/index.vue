@@ -119,11 +119,11 @@
        <view class="timelineBox" v-if="currentTab === '1'" >
          <view class="timeline" v-if="timelineData.length">
            <view v-for="(item, index) in timelineData" :key="index" class="timeline-item"
-                 :class="{ 'active': index < 1 }">
+                 :class="{ 'active': item.completed }">
              <view class="timeline-left">
                <text class="timeline-date" > <uni-dateformat
-                   v-if="item.updateTimeShow"
-                   :date="item.updateTimeShow"
+                   v-if="item.eventTime"
+                   :date="item.eventTime"
                    :threshold="[0, 0]"
                    format="yyyy-MM-dd hh:mm:ss"
                /></text>
@@ -134,7 +134,7 @@
              </view>
              <view class="timeline-right">
                <view class="timeline-content">
-                 <view class="flex">{{ item.ztmc }}</view>
+                 <view class="flex">{{ item.stageName }}</view>
                  <view v-if="configNameFlg" style="flex-direction: row;">
 <!--                     <image class="patient-avatars" src="/static/b.png" @click="showPg(item.item)"></image>-->
                      <image
@@ -297,7 +297,14 @@ import request from '@/request/request';
           this.currentExecutionIndex = 0
           this.setExecutionData()
         } else {
-          this.timelineData = this.formatStatusList(this.itemDt.statusList)
+          const lst = this.itemDt.statusList.filter(qw=>qw.fileList && qw.fileList.length)
+          if(lst.length) {
+            lst.map(w=>{
+              const tr = this.itemDt.flowList.find(wq=>wq.stageName === w.ztmc) || {}
+              tr.fileList = w.fileList
+            })
+          }
+          this.timelineData = this.formatStatusList(this.itemDt.flowList.filter(w=>w.statusCode > 4 ||  w.statusCode === '2'))
           this.timelineDataB = this.formatLogisticDetailList(this.itemDt.logisticDetailList)
         }
         this.medicines = this.itemDt.detailInfoList || []
@@ -354,21 +361,21 @@ import request from '@/request/request';
       },
       setExecutionData() {
         const execution = this.executionList[this.currentExecutionIndex] || {}
-        this.timelineData = this.formatStatusList(execution.statusList)
+        this.timelineData = this.formatStatusList(execution.flowList.filter(w=>w.statusCode > 4 ||  w.statusCode === '2'))
         this.timelineDataB = this.formatLogisticDetailList(execution.logisticDetailList)
       },
       formatStatusList(list) {
         return (Array.isArray(list) ? list : []).map(item => ({
           ...item,
-          updateTimeShow: this.normalizeBackendDate(item.sjfssj),
+          updateTimeShow: this.normalizeBackendDate(item.eventTime),
           fileList: Array.isArray(item.fileList) ? item.fileList : []
-        })).sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
+        }))
       },
       formatLogisticDetailList(list) {
         return (Array.isArray(list) ? list : []).map(item => ({
           ...item,
           updateTimeShow: this.normalizeBackendDate(item.time)
-        })).sort((a, b) => a.updateTimeShow > b.updateTimeShow ? -1 : a.updateTimeShow < b.updateTimeShow ? 1 : 0)
+        }))
       },
       normalizeBackendDate(value) {
         if (!value) return ''

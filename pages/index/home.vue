@@ -48,7 +48,7 @@
           </view>
         </view>
       </view>
-      <view class="section-title">处理流程</view>
+      <view class="section-title">处理进度</view>
       <view v-if="splitPrescription && executionList.length" class="execution-switch">
         <scroll-view scroll-x="true" class="execution-tabs-scroll" :show-scrollbar="false">
           <view class="execution-tabs">
