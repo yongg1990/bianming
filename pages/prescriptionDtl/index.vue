@@ -310,7 +310,7 @@ import request from '@/request/request';
         this.medicines = this.itemDt.detailInfoList || []
         this.watermark = this.info.userName + this.formatDate()
         uni.onUserCaptureScreen(() => {
-          console.log('用户执行了截屏操作');
+          console.log('用户执行了截屏操作 ');
           this.setViewLogFun(1)
         });
         let lastHeight = window.innerHeight
