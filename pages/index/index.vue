@@ -202,25 +202,16 @@
 			};
 		},
 		onLoad(option) {
-      this.getReminderDays().then(() => {
-        return configModuleFun('get',{
-          "moduleName" : "处方流转",
-          "configGroup" : "患者端",
-          "configName" :"版本"
-        }).then(res=>{
-          this.ldFLg = res.data === '兰大'
-        })
-      }).finally(()=>{
-        if (option.AppId){
-          this.getOptFun(option)
-        } else if(option.zjhm){
-          uni.setStorageSync('token', option.sessionKey || '')
-          this.getListFun(option.zjhm)
-        }
-        const userAgent = navigator.userAgent.toLowerCase();
-        const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
-        this.isMobile = mobileRegex.test(userAgent)
-      })
+			if (option.AppId){
+			  this.getOptFun(option)
+			} else if(option.zjhm){
+				this.getconfigModuleFun(option)
+			
+			}
+			const userAgent = navigator.userAgent.toLowerCase();
+			const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
+			this.isMobile = mobileRegex.test(userAgent)
+    
     },
     onShow(){
       this.postMessageFun( 'bbbb')
@@ -232,6 +223,26 @@
       this.reminderRequestId++
     },
 		methods: {
+			getconfigModuleFun(option){
+				this.getReminderDays().then(() => {
+				  return configModuleFun('get',{
+				    "moduleName" : "处方流转",
+				    "configGroup" : "患者端",
+				    "configName" :"版本"
+				  }).then(res=>{
+				    this.ldFLg = res.data === '兰大'
+				  })
+				}).finally(()=>{
+					if(option.zjhm){
+						uni.setStorageSync('token', option.sessionKey || '')
+						this.getListFun(option.zjhm)
+					}
+				else if (this.info.idCard){
+				   this.getListFun()
+				   this.bindUserFun()
+				 }
+				})
+			},
       getReminderDays(){
         return configModuleFun('get', {
           moduleName: '处方流转',
@@ -441,10 +452,8 @@
 						uni.clearStorageSync('userInfo')
 					}
 				}).finally(() => {
-					if (this.info.idCard){
-            this.getListFun()
-            this.bindUserFun()
-          }
+					this.getconfigModuleFun()
+			
 				})
 			},
 

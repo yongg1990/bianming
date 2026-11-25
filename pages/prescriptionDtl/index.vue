@@ -159,6 +159,7 @@
             <view class="logistic-row">
               <text class="logistic-label">物流公司</text>
               <text class="logistic-value">{{ getLogisticCompany(currentLogisticInfo) || '-' }}</text>
+              <text class="copy-text">{{ currentExecution.executionStatusName }}</text>
             </view>
             <view class="logistic-row">
               <text class="logistic-label">运单号</text>
@@ -361,8 +362,8 @@ import request from '@/request/request';
       },
       setExecutionData() {
         const execution = this.executionList[this.currentExecutionIndex] || {}
-        this.timelineData = this.formatStatusList(execution.flowList.filter(w=>w.statusCode > 4 ||  w.statusCode === '2'))
-        this.timelineDataB = this.formatLogisticDetailList(execution.logisticDetailList)
+        this.timelineData = this.formatStatusList(execution.flowList.filter(w=>w.statusCode > 4 ||  w.statusCode === '2')).reverse()
+        this.timelineDataB = this.formatLogisticDetailList(execution.logisticDetailList).reverse()
       },
       formatStatusList(list) {
         return (Array.isArray(list) ? list : []).map(item => ({
